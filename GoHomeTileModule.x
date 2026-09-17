@@ -63,7 +63,7 @@ static void GoHomeNow(void) {
 }
 
 - (UIColor *)selectedColor {
-    return [UIColor whiteColor];
+    return [UIColor clearColor];
 }
 
 - (UIImage *)iconGlyph {
