@@ -11,6 +11,7 @@ BUNDLE_NAME = GoHomeTileModule
 GoHomeTileModule_FILES = GoHomeTileModule.x
 GoHomeTileModule_FRAMEWORKS = UIKit
 GoHomeTileModule_INSTALL_PATH = /Library/ControlCenter/Bundles
+GoHomeTileModule_LDFLAGS = -undefined dynamic_lookup
 GoHomeTileModule_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/bundle.mk
