@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #import <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,58 +15,38 @@ static void GPLog(NSString *msg) {
     fclose(f);
 }
 
-static void DumpClassMethods(FILE *f, Class c) {
-    fprintf(f, "=== %s\n", class_getName(c));
-    unsigned int mcount = 0;
-    Method *methods = class_copyMethodList(c, &mcount);
-    for (unsigned int j = 0; j < mcount && j < 80; j++)
-        fprintf(f, "    - %s\n", sel_getName(method_getName(methods[j])));
-    if (methods) free(methods);
+// 读取活的CCSModuleRepository，列出全部已发现模块
+static void DumpRepository(void) {
+    Class mgrClass = objc_getClass("CCUIModuleInstanceManager");
+    if (!mgrClass) { GPLog(@"CCUIModuleInstanceManager nil"); return; }
+    id mgr = ((id(*)(id, SEL))objc_msgSend)(mgrClass, sel_registerName("sharedInstance"));
+    if (!mgr) { GPLog(@"sharedInstance nil"); return; }
+    id repo = ((id(*)(id, SEL))objc_msgSend)(mgr, sel_registerName("repository"))
+        ?: ((id(*)(id, SEL, NSString *))objc_msgSend)(mgr, sel_registerName("valueForKey:"), @"_repository");
+    if (!repo) { GPLog(@"repository nil"); return; }
+    GPLog(@"repository class ok");
+    // 全部metadata
+    id metas = ((id(*)(id, SEL))objc_msgSend)(repo, sel_registerName("allModuleMetadata"));
+    if (!metas) metas = ((id(*)(id, SEL, NSString *))objc_msgSend)(repo, sel_registerName("valueForKey:"), @"_allModuleMetadata");
+    if (!metas) { GPLog(@"allModuleMetadata nil"); return; }
+    GPLog([NSString stringWithFormat:@"metadata count=%lu", (unsigned long)[metas count]]);
+    for (id m in metas) {
+        id ident = ((id(*)(id, SEL))objc_msgSend)(m, sel_registerName("moduleIdentifier"));
+        id url = ((id(*)(id, SEL))objc_msgSend)(m, sel_registerName("moduleBundleURL"));
+        GPLog([NSString stringWithFormat:@"  module: %@ @ %@", ident, url]);
+    }
 }
 
 %ctor {
     %init;
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
-    GPLog(@"probe 0.3.1 loaded");
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        // 1) 加载器存在性检查
-        const char *loaderClasses[] = {"CCSupport", "CCSupportModule", "CCUIModuleManager", "CCUIModuleController", "CCUIModuleData", "CCUIModuleInfo", "CCUIControlCenterViewController", NULL};
-        GPLog(@"loader classes:");
-        for (int i = 0; loaderClasses[i]; i++) {
-            Class c = objc_getClass(loaderClasses[i]);
-            GPLog([NSString stringWithFormat:@"  %s = %@", loaderClasses[i], c ? @"YES" : @"nil"]);
-        }
-        // 2) 已安装bundle目录检查
-        NSFileManager *fm = NSFileManager.defaultManager;
-        for (NSString *dir in @[@"/var/jb/Library/ControlCenter/Bundles", @"/Library/ControlCenter/Bundles"]) {
-            NSArray *items = [fm contentsOfDirectoryAtPath:dir error:nil];
-            GPLog([NSString stringWithFormat:@"dir %@: %@", dir, items ?: @"<missing>"]);
-        }
-        // 3) 直接dlopen我们的bundle二进制
-        void *h = dlopen("/var/jb/Library/ControlCenter/Bundles/GoHomeTileModule.bundle/GoHomeTileModule", RTLD_LAZY);
-        GPLog([NSString stringWithFormat:@"dlopen gohome bundle = %@ err=%s", h ? @"OK" : @"FAIL", h ? "" : dlerror()]);
-        if (h) {
-            Class tile = objc_getClass("GoHomeTileModule");
-            GPLog([NSString stringWithFormat:@"GoHomeTileModule class = %@", tile ? @"found" : @"nil"]);
-        }
-        // 4) CC模块注册机制侦察
-        FILE *f = fopen("/var/mobile/gohome_recon.log", "a");
-        if (f) {
-            fprintf(f, "\n===== probe 0.3.1 CC recon =====\n");
-            for (int i = 0; loaderClasses[i]; i++) {
-                Class c = objc_getClass(loaderClasses[i]);
-                if (c) DumpClassMethods(f, c);
-            }
-            // 含 Module 的关键类
-            unsigned int count = 0;
-            Class *classes = objc_copyClassList(&count);
-            for (unsigned int i = 0; i < count; i++) {
-                const char *nm = class_getName(classes[i]);
-                if (nm && strstr(nm, "ModuleManager")) DumpClassMethods(f, classes[i]);
-            }
-            free(classes);
-            fclose(f);
-            GPLog(@"recon appended");
-        }
+    GPLog(@"probe 0.3.2 loaded");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        GPLog(@"--- pass1 (8s) ---");
+        DumpRepository();
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        GPLog(@"--- pass2 (30s, 打开控制中心后) ---");
+        DumpRepository();
     });
 }
