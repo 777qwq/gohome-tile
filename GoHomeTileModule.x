@@ -49,16 +49,17 @@ static void GoHomeNow(void) {
 @implementation GoHomeTileModule
 
 - (BOOL)isSelected {
-    return _selected;
+    return NO;
 }
 
 - (void)setSelected:(BOOL)selected {
-    _selected = selected;
+    // 按钮语义：每次点按都触发，立即弹回未选中态（磁贴永远保持白房子）
     if (selected) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             GoHomeNow();
         });
     }
+    _selected = NO;
     [super refreshState];
 }
 
