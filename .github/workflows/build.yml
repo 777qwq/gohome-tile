@@ -37,11 +37,11 @@ jobs:
           <plist version="1.0">
           <dict>
           	<key>CFBundleDisplayName</key>
-          	<string>声音路由</string>
+          	<string>Go Home</string>
           	<key>CFBundleExecutable</key>
-          	<string>RCSpeakerToggle</string>
+          	<string>GoHomeTileModule</string>
           	<key>CFBundleIdentifier</key>
-          	<string>com.rc.control-center.RCSpeakerToggle</string>
+          	<string>com.user.controlcenter.GoHomeTileModule</string>
           	<key>CFBundlePackageType</key>
           	<string>BNDL</string>
           	<key>CFBundleShortVersionString</key>
@@ -62,11 +62,10 @@ jobs:
           		<string>1</string>
           	</dict>
           	<key>NSPrincipalClass</key>
-          	<string>RCSpeakerToggleModule</string>
+          	<string>GoHomeTileModule</string>
           	<key>UIDeviceFamily</key>
           	<array>
           		<integer>1</integer>
-          		<integer>2</integer>
           	</array>
           </dict>
           </plist>
@@ -91,6 +90,6 @@ jobs:
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
-          name: rc-speaker-cc-tile
+          name: gohome-cc-tile
           path: packages/*.deb
 
