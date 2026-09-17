@@ -6,10 +6,12 @@ INSTALL_TARGET_PROCESSES = SpringBoard
 
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = GoHomeTile
-GoHomeTile_FILES = GoHomeTile.x
-GoHomeTile_CFLAGS = -fobjc-arc
-GoHomeTile_FRAMEWORKS = UIKit
-GoHomeTile_LDFLAGS = -undefined dynamic_lookup
+BUNDLE_NAME = GoHomeTileModule
 
-include $(THEOS_MAKE_PATH)/tweak.mk
+GoHomeTileModule_FILES = GoHomeTileModule.x
+GoHomeTileModule_FRAMEWORKS = UIKit
+GoHomeTileModule_PRIVATE_FRAMEWORKS = ControlCenterUIKit
+GoHomeTileModule_INSTALL_PATH = /Library/ControlCenter/Bundles
+GoHomeTileModule_CFLAGS = -fobjc-arc
+
+include $(THEOS_MAKE_PATH)/bundle.mk
