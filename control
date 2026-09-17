@@ -1,6 +1,6 @@
 Package: com.user.gohometile
 Name: GoHomeTile 回主屏磁贴
-Version: 0.2.0
+Version: 0.2.1
 Architecture: iphoneos-arm64
 Description: 控制中心一键返回主屏磁贴
 Author: user
