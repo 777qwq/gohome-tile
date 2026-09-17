@@ -4,46 +4,56 @@
 #import <objc/runtime.h>
 #import <objc/message.h>
 #include <stdio.h>
-#include <string.h>
 #include <time.h>
 
 static void GHLog(NSString *msg) {
-    FILE *f = fopen("/var/mobile/gohome.log", "a");
-    if (!f) return;
-    time_t t = time(NULL); struct tm tmv; localtime_r(&t, &tmv);
-    fprintf(f, "[GH %02d:%02d:%02d] %s\n", tmv.tm_hour, tmv.tm_min, tmv.tm_sec, msg.UTF8String);
-    fclose(f);
+    @try {
+        FILE *f = fopen("/var/mobile/gohome.log", "a");
+        if (!f) return;
+        time_t t = time(NULL); struct tm tmv; localtime_r(&t, &tmv);
+        fprintf(f, "[GH %02d:%02d:%02d] %s\n", tmv.tm_hour, tmv.tm_min, tmv.tm_sec, msg.UTF8String);
+        fclose(f);
+    } @catch (NSException *e) { }
 }
 
-static void DumpClassMethods(FILE *f, Class c) {
-    fprintf(f, "=== %s\n", class_getName(c));
-    unsigned int mcount = 0;
-    Method *methods = class_copyMethodList(c, &mcount);
-    for (unsigned int j = 0; j < mcount && j < 100; j++)
-        fprintf(f, "    - %s\n", sel_getName(method_getName(methods[j])));
-    if (methods) free(methods);
+static id SafeMsg(id obj, SEL sel) {
+    if (!obj || !sel) return nil;
+    @try {
+        if (![obj respondsToSelector:sel]) return nil;
+        return ((id(*)(id, SEL))objc_msgSend)(obj, sel);
+    } @catch (NSException *e) { return nil; }
 }
 
-// 侦察：定位"回主屏"真实API
-static void StartRecon(void) {
-    FILE *f = fopen("/var/mobile/gohome_recon.log", "w");
-    if (!f) return;
-    const char *keys[] = {"SBUIController", "SBMainWorkspace", "SBHomeScreenViewController", "SBIconController", NULL};
-    for (int k = 0; keys[k]; k++) {
-        Class c = objc_getClass(keys[k]);
-        if (c) DumpClassMethods(f, c);
-    }
-    unsigned int count = 0;
-    Class *classes = objc_copyClassList(&count);
-    for (unsigned int i = 0; i < count; i++) {
-        const char *nm = class_getName(classes[i]);
-        if (nm && strstr(nm, "Home") && !strstr(nm, "KeyHome")) {
-            DumpClassMethods(f, classes[i]);
+// 一键回主屏：模拟 home 键单击抬起（SBUIController.handleHomeButtonSinglePressUpForWindowScene:withSourceType:）
+static void GoHomeNow(void) {
+    @try {
+        Class c = objc_getClass("SBUIController");
+        if (!c) { GHLog(@"SBUIController nil"); return; }
+        id ctrl = SafeMsg(c, sel_registerName("sharedInstance"));
+        if (!ctrl) { GHLog(@"controller instance nil"); return; }
+        // 找前台活跃的 UIWindowScene
+        id app = SafeMsg(objc_getClass("UIApplication"), sel_registerName("sharedApplication"));
+        id scenes = SafeMsg(app, sel_registerName("connectedScenes"));
+        id scene = nil;
+        if ([scenes isKindOfClass:[NSSet class]]) {
+            for (id s in scenes) {
+                @try {
+                    SEL st = sel_registerName("activationState");
+                    if ([s respondsToSelector:st] && (((NSInteger(*)(id, SEL))objc_msgSend)(s, st)) == 0 /*foregroundActive*/) {
+                        scene = s; break;
+                    }
+                } @catch (NSException *e) { }
+            }
         }
+        if (!scene && [scenes isKindOfClass:[NSSet class]]) scene = [scenes anyObject];
+        if (!scene) { GHLog(@"no scene"); return; }
+        SEL homeSel = NSSelectorFromString(@"handleHomeButtonSinglePressUpForWindowScene:withSourceType:");
+        if (![ctrl respondsToSelector:homeSel]) { GHLog(@"home selector missing"); return; }
+        ((void(*)(id, SEL, id, id))objc_msgSend)(ctrl, homeSel, scene, nil); // withSourceType 传nil=数值0，整型/对象参数皆安全
+        GHLog(@"home press dispatched");
+    } @catch (NSException *e) {
+        GHLog(@"go home exception caught (no crash)");
     }
-    free(classes);
-    fclose(f);
-    GHLog(@"recon dumped");
 }
 
 @interface GoHomeTileModule : CCUIToggleModule
@@ -55,11 +65,7 @@ static void StartRecon(void) {
 @implementation GoHomeTileModule
 
 + (void)load {
-    // bundle加载即侦察（SpringBoard进程内）
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        GHLog(@"GoHomeTileModule loaded (0.2.0 recon)");
-        StartRecon();
-    });
+    NSLog(@"[GoHomeCC] v1.0 loaded");
 }
 
 - (BOOL)isSelected {
@@ -69,7 +75,12 @@ static void StartRecon(void) {
 - (void)setSelected:(BOOL)selected {
     _selected = selected;
     GHLog([NSString stringWithFormat:@"tile tapped selected=%d", selected]);
-    // v0.2: 回主屏API待侦察接入，当前仅记录
+    if (selected) {
+        // 延迟到磁贴动画结束后再回主屏
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            GoHomeNow();
+        });
+    }
     [super refreshState];
 }
 
