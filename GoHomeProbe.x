@@ -17,50 +17,73 @@ static void GPLog(NSString *msg) {
     } @catch (NSException *e) { }
 }
 
-static id SafeMsg(id obj, SEL sel) {
-    if (!obj || !sel) return nil;
+static void DumpMethods(FILE *f, Class c) {
+    if (!c) return;
     @try {
-        if (![obj respondsToSelector:sel]) return nil;
-        return ((id(*)(id, SEL))objc_msgSend)(obj, sel);
-    } @catch (NSException *e) { return nil; }
+        fprintf(f, "=== %s\n", class_getName(c));
+        unsigned int mcount = 0;
+        Method *methods = class_copyMethodList(c, &mcount);
+        for (unsigned int j = 0; j < mcount && j < 120; j++)
+            fprintf(f, "    - %s\n", sel_getName(method_getName(methods[j])));
+        if (methods) free(methods);
+    } @catch (NSException *e) { }
 }
 
-static void DumpRepository(void) {
+static void DeepRecon(void) {
     @try {
-        Class mgrClass = objc_getClass("CCUIModuleInstanceManager");
-        if (!mgrClass) { GPLog(@"CCUIModuleInstanceManager nil"); return; }
-        id mgr = SafeMsg(mgrClass, sel_registerName("sharedInstance"));
-        if (!mgr) { GPLog(@"sharedInstance nil"); return; }
-        id repo = SafeMsg(mgr, sel_registerName("repository"));
-        if (!repo) repo = SafeMsg(mgr, NSSelectorFromString(@"_repository"));
-        if (!repo) { GPLog(@"repository nil"); return; }
-        id metas = SafeMsg(repo, sel_registerName("allModuleMetadata"));
-        if (!metas) metas = SafeMsg(repo, NSSelectorFromString(@"_allModuleMetadata"));
-        if (![metas isKindOfClass:[NSArray class]]) { GPLog(@"metas not array"); return; }
-        GPLog([NSString stringWithFormat:@"metadata count=%lu", (unsigned long)[metas count]]);
-        for (id m in metas) {
+        // 1) 关键类方法清单
+        FILE *f = fopen("/var/mobile/gohome_probe.log", "a");
+        if (!f) return;
+        fprintf(f, "===== 0.3.5 deep recon =====\n");
+        const char *keys[] = {"CCUIModuleInstanceManager", "CCSModuleRepository", "CCSModuleMetadata", "CCSModuleSettingsProvider", "CCUIModuleManager", NULL};
+        for (int i = 0; keys[i]; i++) {
+            Class c = objc_getClass(keys[i]);
+            if (c) DumpMethods(f, c);
+            else fprintf(f, "=== %s (nil)\n", keys[i]);
+        }
+        // 2) ModuleManager 后缀类
+        unsigned int count = 0;
+        Class *classes = objc_copyClassList(&count);
+        for (unsigned int i = 0; i < count; i++) {
+            const char *nm = class_getName(classes[i]);
+            if (nm && (strstr(nm, "ModuleRepository") || strstr(nm, "ModuleInstanceManager"))) {
+                DumpMethods(f, classes[i]);
+            }
+        }
+        free(classes);
+        fclose(f);
+        // 3) 模块配置文件
+        for (NSString *p in @[@"/var/mobile/Library/ControlCenter/ModuleConfiguration_CCSupport.plist",
+                              @"/var/mobile/Library/ControlCenter/ModuleConfiguration.plist"]) {
             @try {
-                id ident = SafeMsg(m, sel_registerName("moduleIdentifier"));
-                id url = SafeMsg(m, sel_registerName("moduleBundleURL"));
-                GPLog([NSString stringWithFormat:@"  module: %@ @ %@", ident, url]);
+                NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:p];
+                if (d) {
+                    NSArray *known = d[@"knownModuleIdentifiers"] ?: d[@"knownModuleIdentifiers3"];
+                    GPLog([NSString stringWithFormat:@"%@ keys=%@", [p lastPathComponent], [d allKeys]]);
+                    if ([known isKindOfClass:[NSArray class]]) {
+                        GPLog([NSString stringWithFormat:@"  known count=%lu", (unsigned long)[known count]]);
+                        BOOL found = NO;
+                        for (NSString *s in known) {
+                            if ([s containsString:@"GoHome"]) { GPLog([NSString stringWithFormat:@"  FOUND: %@", s]); found = YES; }
+                        }
+                        if (!found) GPLog(@"  GoHome not in known");
+                    }
+                } else {
+                    GPLog([NSString stringWithFormat:@"%@ missing/empty", [p lastPathComponent]]);
+                }
             } @catch (NSException *e) { }
         }
+        GPLog(@"deep recon done");
     } @catch (NSException *e) {
-        GPLog(@"DumpRepository exception caught (no crash)");
+        GPLog(@"deep recon exception caught");
     }
 }
 
 %ctor {
     %init;
     if (![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) return;
-    GPLog(@"probe 0.3.4 loaded (bulletproof)");
-    // 后台队列执行，绝不占用主线程
+    GPLog(@"probe 0.3.5 loaded");
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10.0 * NSEC_PER_SEC)), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        GPLog(@"--- pass1 (10s) ---");
-        DumpRepository();
-    });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(35.0 * NSEC_PER_SEC)), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        GPLog(@"--- pass2 (35s) ---");
-        DumpRepository();
+        DeepRecon();
     });
 }
