@@ -9,7 +9,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = GoHomeTile
 GoHomeTile_FILES = GoHomeTile.x
 GoHomeTile_CFLAGS = -fobjc-arc
-GoHomeTile_FRAMEWORKS = UIKit ControlCenterUIKit
+GoHomeTile_FRAMEWORKS = UIKit
 GoHomeTile_LDFLAGS = -undefined dynamic_lookup
 
 include $(THEOS_MAKE_PATH)/tweak.mk
