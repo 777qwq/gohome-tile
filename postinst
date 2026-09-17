@@ -1,2 +1,8 @@
 #!/bin/sh
+# 清理旧版遗留探针（无killall，安全）
+rm -f "/var/jb/Library/MobileSubstrate/DynamicLibraries/GoHomeProbe.dylib" 2>/dev/null
+rm -f "/var/jb/Library/MobileSubstrate/DynamicLibraries/GoHomeProbe.plist" 2>/dev/null
+rm -f /var/mobile/gohome_probe.log 2>/dev/null
+rm -f /var/mobile/gohome_recon.log 2>/dev/null
+rm -f /var/mobile/gohome.log 2>/dev/null
 exit 0
