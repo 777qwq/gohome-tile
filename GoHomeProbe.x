@@ -25,6 +25,14 @@ static id SafeMsg(id obj, SEL sel) {
     } @catch (NSException *e) { return nil; }
 }
 
+static id SafeMsg1(id obj, SEL sel, id arg) {
+    if (!obj || !sel) return nil;
+    @try {
+        if (![obj respondsToSelector:sel]) return nil;
+        return ((id(*)(id, SEL, id))objc_msgSend)(obj, sel, arg);
+    } @catch (NSException *e) { return nil; }
+}
+
 static void VerifyModule(void) {
     @try {
         // 1) 配置文件里的模块清单
@@ -45,7 +53,7 @@ static void VerifyModule(void) {
             ?: SafeMsg(repoClass, NSSelectorFromString(@"_defaultModuleDirectories"));
         GPLog([NSString stringWithFormat:@"module dirs = %@", dirs]);
         if (![dirs isKindOfClass:[NSArray class]] || [dirs count] == 0) { GPLog(@"no dirs"); return; }
-        id repo = ((id(*)(id, SEL))objc_msgSend)([repoClass alloc], NSSelectorFromString(@"_initWithDirectoryURLs:allowedModuleIdentifiers:"), dirs, nil);
+        id repo = SafeMsg1([repoClass alloc], NSSelectorFromString(@"_initWithDirectoryURLs:allowedModuleIdentifiers:"), dirs);
         if (!repo) { GPLog(@"repo alloc/init failed"); return; }
         // 触发元数据更新
         SafeMsg(repo, NSSelectorFromString(@"_queue_updateAllModuleMetadata"));
@@ -57,7 +65,7 @@ static void VerifyModule(void) {
             if ([s containsString:@"RCSpeaker"]) GPLog([NSString stringWithFormat:@"  speaker ref: %@", s]);
         }
         if (!found) GPLog(@"  GoHome NOT loadable");
-        id meta = SafeMsg(repo, NSSelectorFromString(@"moduleMetadataForModuleIdentifier:"), @"com.user.controlcenter.GoHomeTileModule");
+        id meta = SafeMsg1(repo, NSSelectorFromString(@"moduleMetadataForModuleIdentifier:"), @"com.user.controlcenter.GoHomeTileModule");
         GPLog([NSString stringWithFormat:@"our metadata = %@", meta ? @"EXISTS" : @"nil"]);
         if (meta) {
             id fams = SafeMsg(meta, sel_registerName("supportedDeviceFamilies"));
