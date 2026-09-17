@@ -12,12 +12,6 @@ GoHomeTileModule_FRAMEWORKS = UIKit
 GoHomeTileModule_INSTALL_PATH = /Library/ControlCenter/Bundles
 GoHomeTileModule_LDFLAGS = -undefined dynamic_lookup
 
-TWEAK_NAME = GoHomeProbe
-GoHomeProbe_FILES = GoHomeProbe.x
-GoHomeProbe_FRAMEWORKS = UIKit
-GoHomeProbe_LDFLAGS = -undefined dynamic_lookup
-GoHomeProbe_CFLAGS = -fobjc-arc
 GoHomeTileModule_CFLAGS = -fobjc-arc
 
-include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/bundle.mk
