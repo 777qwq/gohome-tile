@@ -10,7 +10,6 @@ BUNDLE_NAME = GoHomeTileModule
 
 GoHomeTileModule_FILES = GoHomeTileModule.x
 GoHomeTileModule_FRAMEWORKS = UIKit
-GoHomeTileModule_PRIVATE_FRAMEWORKS = ControlCenterUIKit
 GoHomeTileModule_INSTALL_PATH = /Library/ControlCenter/Bundles
 GoHomeTileModule_CFLAGS = -fobjc-arc
 
